@@ -23,7 +23,7 @@ This model analysis aids coaching in focussing on metrics that promote successfu
 
 ---
 
-*Author: Gabriel Thornton | June 2025*
+*Author: Gabriel Thornton | March 2025*
 
 
 
