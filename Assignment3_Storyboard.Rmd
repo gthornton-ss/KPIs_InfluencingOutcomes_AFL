@@ -1,0 +1,188 @@
+---
+title: "AFL KPI Analysis Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    storyboard: true
+    theme: united  
+    source_code: embed
+    social: ["menu"]
+---
+
+<style>
+  .custom-header {
+    position: relative;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #ddd;
+  }
+
+  .custom-header img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 60px;
+  }
+</style>
+
+<div class="custom-header">
+  <h2>AFL Regression Models: 2012 KPI Analysis</h2>
+</div>
+
+```{r setup, include=FALSE}
+# Load Packages
+library(tidyverse)
+library(plotly)
+library(flexdashboard)
+library(dplyr)
+library(readxl)
+library(DT)
+library(reshape2)
+library(RColorBrewer)
+library(glmnet)
+library(knitr)
+
+# Load dataset 
+afl <- read_excel("/home/gthornton1999/VU/2. Introduction/Assignment 3/Data/Football dataset.xlsx")
+```
+
+### Data Table
+
+
+```{r Interactive Table}
+
+# Create a value for KPI column names
+kpi_cols <- c("Metres_Gained", "Uncontested_Possessions", "Contested_Possessions", "Contested_Marks", "Uncontested_Marks", "HB_Receives", "Clearances", "TimeInPossession_Differential%", "Clanger_Kicks", "HB", "HB_Efficiency%", "Kick", "Kick_HB_Ratio%", "Kick_Efficiency%", "Tackle", "Turnover", "Behind", "Goal", "Score", "Score_Accuracy%", "Mark", "Mark_PlayOn", "Inside_50", "Rebound_50")
+
+# Create a data frame summing the quarterly differentials into match form
+match_df <- afl %>%
+  group_by(Season, Round, Team, Final_Ladder) %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE),
+            Final_Ladder = first(Final_Ladder)) %>%
+  ungroup()
+# Aggregate the round KPIs to season long KPIs
+season_df <- match_df %>%
+  group_by(Season, Team, Final_Ladder) %>%
+  summarise(across(all_of(kpi_cols), sum), .groups = "drop")
+
+# rounded data set to 1 dp
+season_df_rounded <- season_df %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 1)))
+
+
+
+# create 
+datatable(season_df_rounded, 
+          extensions = 'Buttons',
+          options = list(
+            dom = 'Bfrtip',
+            buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+            paging = FALSE,
+            scrolly = "500px",
+            scrollCollapse = TRUE
+          ),
+          rownames = FALSE,
+          class = 'stripe hover'
+          )
+
+```
+
+
+
+
+
+### Regression Techniques
+
+```{r Lasso Regression}
+
+# Correlation matrix of KPIs
+cor_matrix <- cor(season_df %>% select(-Season, -Team), use = "complete.obs")
+
+# Ranked list of KPIs that directly effect a low ladder position (the most influential KPIs)
+cor_with_ladder <- cor_matrix["Final_Ladder", ]
+cor_with_ladder <- sort(cor_with_ladder[-1])  # remove self-correlation and sort
+
+# Table of the ranked KPIs
+knitr::kable(cor_with_ladder)
+
+# Heatmap of correlations 
+library(reshape2)
+library(RColorBrewer) # maybe virirdis??
+
+# correlation matrix for KPIs
+cor_matrix <- cor(season_df %>% select(-Season, -Team), use = "complete.obs")
+# melt correlation matrix for gg plot 
+# melt = reshapes the data into long format for plotting
+cor_melt <- melt(cor_matrix)
+# Add correlation with Final_Ladder to the melted data
+cor_ladder_df <- data.frame(KPI = names(cor_with_ladder), Correlation = cor_with_ladder)
+cor_melt$Final_Ladder <- cor_ladder_df$Correlation[match(cor_melt$Var1, cor_ladder_df$KPI)]
+#plot heatmap
+plot_ly(
+  data = cor_melt, 
+  x = ~Var1, 
+  y = ~Var2, 
+  z = ~value, 
+  type = "heatmap", 
+  colors = c("orange", "white", "purple"), 
+  text = ~paste("KPI1: ", Var1, "<br>KPI2: ", Var2, "<br>Correlation:", round(value, 2)),  # Hover text of KPI v KPI and correlation
+  hoverinfo = "text"  # Show text on hover
+) %>%
+  layout(
+    title = "Interactive Heatmap of KPIs and Final Ladder Position",
+    xaxis = list(title = "KPI", tickangle = 45),
+    yaxis = list(title = "KPI")
+  )
+
+
+# a matrix of predictors
+X <- model.matrix(Final_Ladder ~ . -Season -Team, data = season_df)[, -1]
+# a numeric outcome value
+y <- season_df$Final_Ladder
+
+lasso_model <- cv.glmnet(X, y, alpha = 1) 
+#plot(lasso_model)
+
+coef(lasso_model, s = "lambda.min") 
+
+
+# Create neater table
+coef_df <- as.matrix(coef(lasso_model, s = "lambda.min"))
+coef_df <- data.frame(KPI = rownames(coef_df), Coefficient = coef_df[,1])
+coef_df <- coef_df[coef_df$Coefficient != 0, ]  # remove zeroed-out KPIs
+
+knitr::kable(coef_df)
+
+# Predicted Ladder position
+# assess accuracy
+intercept <- 9.5
+goal_coef <- -0.04
+# calculate predicted ladder position using lasso equation
+season_df$Predicted_Ladder_Position <- intercept + goal_coef * season_df$Goal
+# Create a comparison table
+ladder_comparison <- season_df[, c("Team", "Goal", "Predicted_Ladder_Position", "Final_Ladder")]
+# calculate r2 value for accuracy.
+r_squared <- cor(season_df$Final_Ladder, season_df$Predicted_Ladder_Position)^2
+# kable table with accuracy
+kable(ladder_comparison, caption = paste("Predicted vs Actual Ladder Positions Using the Lasso Regression Equation (R² =", round(r_squared, 3), ")"))
+```
+
+
+
+
+### Key Points for Staff
+
+```{r Interactive plot of data}
+
+# plot of goal vs ladder position. 
+GoalvLadder <- ggplot(season_df, aes(x = Goal, y = Final_Ladder)) +
+  geom_point(aes(colour = Team)) +
+  geom_smooth(method = "lm") +
+  labs(title = "Goal Differential vs Final Ladder Position",
+       x = "Goal Differential",
+       y = "Final Ladder Position") +
+  theme_classic()
+# interactive
+ggplotly(GoalvLadder)
+
+```
