@@ -19,6 +19,12 @@ This model analysis aids coaching in focussing on metrics that promote successfu
 - `Football dataset.xlsx`: Excel file used in the project
 - `Assignment 3.RProj`: The Project used in RStudio
 
+
+---
+
+*Author: Gabriel Thornton | June 2025*
+
+
 ---
 
 *Author: Gabriel Thornton | June 2025*
