@@ -20,10 +20,6 @@ This model analysis aids coaching in focussing on metrics that promote successfu
 - `Assignment 3.RProj`: The Project used in RStudio
 
 
----
-
-*Author: Gabriel Thornton | June 2025*
-
 
 ---
 
