@@ -14,10 +14,10 @@ This was completed as my final assessment presentation for the `Introduction to 
 This model analysis aids coaching in focussing on metrics that promote successful match outcomes and inhibits unsuccesful outcomes for training purposes.
 
 ## Files
-- `NRL_Elo_Report.Rmd`: Main analysis
-- `NRL_Elo_Report.html`: Knitted version
-- `Data/`: CSV files used in the project
-- `NRL_Portfolio.RProj`: The Project used in RStudio
+- `Assignment3_Storyboard.Rmd`: Main analysis in RMarkdown.
+- `Assignment3_Storyboard.html`: Knitted HTML version
+- `Football dataset.xlsx`: Excel file used in the project
+- `Assignment 3.RProj`: The Project used in RStudio
 
 ---
 
